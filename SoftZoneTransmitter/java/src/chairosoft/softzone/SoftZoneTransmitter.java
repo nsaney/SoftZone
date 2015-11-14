@@ -286,7 +286,7 @@ public class SoftZoneTransmitter
     public static class RequestHandler extends Thread
     {
         // Static Fields
-        public AudioFormat DESKTOP_AUDIO_FORMAT = new AudioFormat(
+        public static final AudioFormat DESKTOP_AUDIO_FORMAT = new AudioFormat(
             AudioFormat.Encoding.PCM_SIGNED, 
             Protocol.AUDIO_SAMPLES_PER_SECOND, 
             Protocol.AUDIO_SAMPLE_SIZE_IN_BITS, 
