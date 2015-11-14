@@ -1,0 +1,161 @@
+#!/bin/bash
+#
+# Simple script for using the SoftZone transmitter.
+
+###########
+## Debug ##
+###########
+#set -x
+
+###############
+## Variables ##
+###############
+home_dir="/home/pi/Desktop/SoftZoneTransmitter"
+jar_file="SoftZoneTransmitter.jar"
+process_pid_command="pgrep -f \"java -jar .*$jar_file\" | head -n 1"
+input_file="input_normal.txt"
+log_dir_name="logs"
+log_dir="$home_dir/$log_dir_name"
+latest_log_file="latest_log_file.txt"
+historical_log_file_prefix="historical_log_file"
+historical_log_file_suffix=".txt"
+historical_log_file_max=5
+
+###############
+## Functions ##
+###############
+function fn_update_logs {
+    local prev_dir=`pwd`
+    cd "$log_dir"
+
+    ## remove the oldest log if it exists
+    local oldest_possible_log_file="$historical_log_file_prefix$historical_log_file_max$historical_log_file_suffix"
+    if [ -e "$oldest_possible_log_file" ]; then
+        rm -f "$oldest_possible_log_file"
+        echo "removed $oldest_possible_log_file"
+    fi
+
+    ## rename historical files one at a time (increase their number to show they are older)
+    local prev_file="$oldest_possible_log_file"
+    for num in `seq -w "$((historical_log_file_max - 1))" -1 1`
+    do
+        local log_file_to_rename="$historical_log_file_prefix$num$historical_log_file_suffix";
+        if [ -e "$log_file_to_rename" ]; then
+            mv -f "$log_file_to_rename" "$prev_file"
+            echo "renamed $log_file_to_rename to $prev_file"
+        fi
+        prev_file="$log_file_to_rename"
+    done
+
+    ## rename latest log file to be historical
+    if [ -e "$latest_log_file" ]; then
+        mv -f "$latest_log_file" "$prev_file"
+        echo "renamed $latest_log_file to $prev_file"
+    fi
+    cd "$prev_dir"
+}
+function fn_start {
+    local prev_dir=`pwd`
+    fn_update_logs
+    cd "$home_dir"
+
+    ## run the java program
+    ## using the speficied input file for stdin
+    ## and using the specified log file for both stdout and stderr
+    (java -jar "$jar_file" < "$input_file" &> "$log_dir_name/$latest_log_file") &
+
+    cd "$prev_dir"
+}
+function fn_stop {
+    local pid="`eval $process_pid_command`"
+
+    ## keel it dead
+    if [ -n "$pid" ]; then
+        kill -9 "$pid"
+        echo 'SoftZone Transmitter stopped.'
+    else
+        echo 'SoftZone Transmitter not currently running.'
+    fi
+}
+function fn_clear_logs {
+    local prev_dir=`pwd`
+    cd "$log_dir"
+
+    ## remove and report each file in the log directory
+    for file in *; do
+        if [ -e "$file" ]; then
+            rm -f "$file"
+            echo "removed $file"
+        fi
+    done
+
+    cd "$prev_dir"
+}
+function fn_follow_log {
+    local prev_dir=`pwd`
+    cd "$log_dir"
+
+    ## view (and follow) the tail end of the latest log file
+    if [ -e "$latest_log_file" ]; then
+        tail -f "$latest_log_file"
+    fi
+
+    cd "$prev_dir"
+}
+function fn_view_log {
+    local prev_dir=`pwd`
+    cd "$log_dir"
+
+    ## view the current text in the latest log file
+    if [ -e "$latest_log_file" ]; then
+        cat "$latest_log_file"
+    fi
+
+    cd "$prev_dir"
+}
+function fn_view_process {
+    local pid="`eval $process_pid_command`"
+
+    ## view process info if currently running
+    if [ -n "$pid" ]; then
+        ps -f "$pid"
+    else
+        echo 'SoftZone Transmitter not currently running.'
+    fi
+}
+
+#########################
+## Branch on Arguments ##
+#########################
+if [ "$1" = 'start' ]; then
+    if [ -z "`eval $process_pid_command`" ]; then
+        fn_start
+        echo 'SoftZone Transmitter started.'
+    else
+        echo 'SoftZone Transmitter already started! Did you want to restart instead?'
+    fi
+elif [ "$1" = 'stop' ]; then
+    fn_stop
+elif [ "$1" = 'restart' ]; then
+    fn_stop; fn_start
+    echo 'SoftZone Transmitter restarted.'
+elif [ "$1" = 'clear' ] && [ "$2" = 'logs' ]; then
+    fn_clear_logs
+    echo 'SoftZone Transmitter logs cleared.'
+elif [ "$1" = 'follow' ] && [ "$2" = 'log' ]; then
+    fn_follow_log
+elif [ "$1" = 'view' ] && [ "$2" = 'log' ]; then
+    fn_view_log
+elif [ "$1" = 'view' ] && [ "$2" = 'process' ]; then
+    fn_view_process
+else
+    echo -e "Usage: `basename \"$0\"` start       "
+    echo -e "   or: `basename \"$0\"` stop        "
+    echo -e "   or: `basename \"$0\"` restart     "
+    echo -e "   or: `basename \"$0\"` clear logs  "
+    echo -e "   or: `basename \"$0\"` follow log  "
+    echo -e "   or: `basename \"$0\"` view log    "
+    echo -e "   or: `basename \"$0\"` view process"
+fi
+
+exit 0
