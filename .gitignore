@@ -1,3 +1,11 @@
+icons/*
+SoftZoneReceiverAppNotes.txt
+SoftZoneReceiverApp/*
+SoftZoneTransmitter/java/bin/*
+SoftZoneTransmitter/java/doc/*
+SoftZoneTransmitter/java/staging/*
+SoftZoneTransmitter/java/Deploy_*/*
+
 # Windows image file caches
 Thumbs.db
 ehthumbs.db
