@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">SoftZone Receiver</string>
+  <string name="title_select_transmitter">Select Transmitter</string>
+  <string name="label_manual_entry">Manual Entry</string>
+  <string name="label_selected_transmitter">Selected Transmitter: </string>
+  <string name="label_no_transmitter_selected">No Transmitter Selected</string>
+  <string name="label_buffer_length_ms">Buffer Length (ms): </string>
+  <string name="label_name">Server Name</string>
+  <string name="label_host">Server Host</string>
+  <string name="label_port">Port</string>
+  <string name="label_not_streaming">Not currently streaming.</string>
+  <string name="label_streaming_with_buffer_size">Currently streaming. Buffer size =</string>
+  <string name="button_cancel">Cancel</string>
+  <string name="button_select">Select</string>
+  <string name="button_start_streaming">Start Streaming</string>
+  <string name="button_stop_streaming">Stop Streaming</string>
+  <string name="button_start_scanning">Start Scanning</string>
+  <string name="button_stop_scanning">Stop Scanning</string>
+</resources>
