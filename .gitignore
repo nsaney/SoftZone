@@ -4,6 +4,10 @@ SoftZoneReceiverApp/bin
 SoftZoneReceiverApp/gen
 SoftZoneReceiverApp/libs/*.jar
 SoftZoneReceiverApp/local.properties
+SoftZoneReceiverProgram/bin
+SoftZoneReceiverProgram/Deploy_*
+SoftZoneReceiverProgram/doc
+SoftZoneReceiverProgram/lib
 SoftZoneTransmitter/java/bin
 SoftZoneTransmitter/java/Deploy_*
 SoftZoneTransmitter/java/doc
