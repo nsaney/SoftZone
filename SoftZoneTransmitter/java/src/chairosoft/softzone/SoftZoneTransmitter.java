@@ -747,93 +747,14 @@ public class SoftZoneTransmitter
         public static interface ScanningUserInterface
         {
             public void handleExceptionDuringScanWorkerExecution(Exception ex);
-            // {
-            //     Log.e(APP_NAME, ex.toString());
-            // }
-            
             public void incrementScanProgressBy(int amount);
-            // {
-            //     activity.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         ProgressBar progressBarScan = (ProgressBar)activity.findViewById(R.id.progressBarScan);
-            //         progressBarScan.incrementProgressBy(amount);
-            //     }});
-            // }
-            
             public String getLocalAddressPrefix() throws Exception;
-            // {
-            //     TransmitterSelectionActivity.getLocalAddressPrefix(activity);
-            // }
-            
             public void handleExceptionDuringScanStart(Exception ex);
-            // {
-            //     Log.e(APP_NAME, ex.getMessage());
-            //     final String errorMessage = "Error starting scan";
-            //     activity.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         Toast toast = Toast.makeText(activity, errorMessage, Toast.LENGTH_SHORT);
-            //         toast.show();
-            //     }});
-            // }
-            
             public void resetScanReadyZonesAndProgress();
-            // {
-            //     activity.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         LinearLayout linearLayoutReadyZones = (LinearLayout)activity.findViewById(R.id.linearLayoutReadyZones);
-            //         linearLayoutReadyZones.removeAllViews();
-            //         ProgressBar progressBarScan = (ProgressBar)activity.findViewById(R.id.progressBarScan);
-            //         progressBarScan.setProgress(0);
-            //     }});
-            // }
-            
             public void addReadyScanResult(ScanResult scanResult);
-            // {
-            //     Log.e(APP_NAME, String.format("Found %s (%s)", scanResult.host, scanResult.name));
-            //     activity.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         LinearLayout linearLayoutReadyZones = (LinearLayout)activity.findViewById(R.id.linearLayoutReadyZones);
-            //         Button buttonResult = new Button(activity);
-            //         buttonResult.setText(String.format("%s (%s)", scanResult.name, scanResult.host));
-            //         buttonResult.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v)
-            //         {
-            //             EditText editTentativeHost = (EditText)activity.findViewById(R.id.editTentativeHost);
-            //             EditText editTentativeName = (EditText)activity.findViewById(R.id.editTentativeName);
-            //             
-            //             editTentativeHost.setText(scanResult.host);
-            //             editTentativeName.setText(scanResult.name);
-            //         }});
-            //         linearLayoutReadyZones.addView(buttonResult);
-            //     }});
-            // }
-            
             public void handleInterruptedExceptionDuringButtonCreation(InterruptedException ex);
-            // {
-            //     Log.e(APP_NAME, ex.toString());
-            // }
-            
             public void handleExceptionDuringWorkerThreadJoin(Exception ex);
-            // {
-            //     Log.e(APP_NAME, ex.getMessage());
-            //     final String errorMessage = "Error while scanning";
-            //     activity.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         Toast toast = Toast.makeText(activity, errorMessage, Toast.LENGTH_SHORT);
-            //         toast.show();
-            //     }});
-            // }
-            
             public void showScanFinishedSuccessfully();
-            // {
-            //     final String message = "Finished Scan";
-            //     activity.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         Toast toast = Toast.makeText(activity, message, Toast.LENGTH_SHORT);
-            //         toast.show();
-            //         ProgressBar progressBarScan = (ProgressBar)activity.findViewById(R.id.progressBarScan);
-            //         progressBarScan.setProgress(progressBarScan.getMax());
-            //     }});
-            // }
         }
         
     }
