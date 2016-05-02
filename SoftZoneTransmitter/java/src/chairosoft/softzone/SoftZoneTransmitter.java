@@ -14,16 +14,23 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Scanner;
+
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -502,5 +509,334 @@ public class SoftZoneTransmitter
             }
         }
     }
+    
+    /**
+     * A collection of utilities for receiver applications to use.
+     * Includes code to scan for transmitters.
+     */
+    public static class ReceiverUtilities
+    {
+        // Constructor
+        private ReceiverUtilities() { throw new UnsupportedOperationException(); }
+        
+        // Static Inner Classes
+        /**
+         * The result of a scan for a transmitter.
+         */
+        public static class ScanResult
+        {
+            // Instance Fields
+            public final String host;
+            public final String name;
+            
+            // Constructor
+            public ScanResult(String _host, String _name)
+            {
+                this.host = _host;
+                this.name = _name;
+            }
+        }
+        
+        /**
+         * A thread that takes an unscanned host, scans for it, and 
+         * reports a scan result for ready hosts.
+         */
+        public static class ScanningWorkerThread extends Thread
+        {
+            // Instance Fields
+            protected final ConcurrentLinkedQueue<String> unscannedHosts;
+            protected final LinkedBlockingQueue<ScanResult> readyHosts;
+            protected final ScanningMasterThread masterThread;
+            
+            // Constructor
+            public ScanningWorkerThread(ConcurrentLinkedQueue<String>   _unscannedHosts, 
+                                        LinkedBlockingQueue<ScanResult> _readyHosts,
+                                        ScanningMasterThread            _masterThread
+            )
+            {
+                this.unscannedHosts = _unscannedHosts;
+                this.readyHosts = _readyHosts;
+                this.masterThread = _masterThread;
+            }
+            
+            // Instance Methods
+            @Override 
+            public void run()
+            {
+                final ScanningWorkerThread self = this;
+                while (!ScanningMasterThread.stopFlag)
+                {
+                    String host = this.unscannedHosts.poll();
+                    if (host == null) { break; }
+                    
+                    Socket socket = new Socket();
+                    InetSocketAddress socketAddress = new InetSocketAddress(host, this.masterThread.port);
+                    try
+                    {
+                        socket.connect(socketAddress, this.masterThread.scanConnectionTimeoutMs);
+                        try ( InputStream serverIn = socket.getInputStream()
+                            ; OutputStream serverOut = socket.getOutputStream()
+                        )
+                        {
+                            serverOut.write(Protocol.REQUEST_STATUS());
+                            byte[] statusBuffer = new byte[1];
+                            int statusBytesRead = serverIn.read(statusBuffer);
+                            if (statusBytesRead > 0)
+                            {
+                                byte[] nameBuffer = new byte[Protocol.STATUS_NAME_MAX_LENGTH];
+                                int nameBytesRead = serverIn.read(nameBuffer);
+                                if (nameBytesRead > 0 && statusBuffer[0] == Protocol.STATUS_READY)
+                                {
+                                    String name = new String(nameBuffer, 0, nameBytesRead, Protocol.STATUS_NAME_CHARSET);
+                                    ScanResult result = new ScanResult(host, name);
+                                    this.readyHosts.offer(result);
+                                }
+                            }
+                        }
+                    }
+                    catch (SocketTimeoutException ex)
+                    {
+                        // do nothing
+                    }
+                    catch (Exception ex)
+                    {
+                        this.masterThread.userInterface.handleExceptionDuringScanWorkerExecution(ex);
+                    }
+                    finally
+                    {
+                        this.masterThread.userInterface.incrementScanProgressBy(1);
+                    }
+                }
+            }
+        }
+        
+        /**
+         * A thread that orchestrates the creation and utilization of 
+         * several ScanningWorkerThread objects in order to communicate 
+         * the scan results to a ScanningUserInterface.
+         */
+        public static class ScanningMasterThread extends Thread
+        {
+            // Locks
+            public static final Object statusLock = new Object();
+            
+            // Static Variables
+            protected static volatile byte status = Protocol.STATUS_READY;
+            public static volatile boolean stopFlag = true;
+            
+            // Instance Fields
+            public final ScanningUserInterface userInterface;
+            public final int port;
+            public final int scanWorkerThreadCount;
+            public final int scanConnectionTimeoutMs;
+            
+            // Constructor
+            public ScanningMasterThread(ScanningUserInterface _userInterface, 
+                                        int                   _port, 
+                                        int                   _scanWorkerThreadCount, 
+                                        int                   _scanConnectionTimeoutMs
+            )
+            {
+                this.userInterface = _userInterface;
+                this.port = _port;
+                this.scanWorkerThreadCount = _scanWorkerThreadCount;
+                this.scanConnectionTimeoutMs = _scanConnectionTimeoutMs;
+            }
+            
+            // Instance Methods
+            @Override
+            public void run()
+            {
+                final ScanningMasterThread self = this;
+                String localAddressPrefix = null;
+                synchronized (ScanningMasterThread.statusLock)
+                {
+                    if (ScanningMasterThread.status != Protocol.STATUS_READY)
+                    {
+                        return;
+                    }
+                    
+                    try 
+                    {
+                        // get local address prefix
+                        localAddressPrefix = this.userInterface.getLocalAddressPrefix();
+                    }
+                    catch (Exception ex)
+                    {
+                        this.userInterface.handleExceptionDuringScanStart(ex);
+                        return;
+                    }
+                    
+                    ScanningMasterThread.status = Protocol.STATUS_BUSY;
+                    ScanningMasterThread.stopFlag = false;
+                }
+                
+                // clear zone button list
+                this.userInterface.resetScanReadyZonesAndProgress();
+                
+                // in queue
+                ConcurrentLinkedQueue<String> unscannedHosts = new ConcurrentLinkedQueue<>();
+                for (int i = 0; i < 255; ++i)
+                {
+                    String nextUnscannedHost = localAddressPrefix + i;
+                    unscannedHosts.add(nextUnscannedHost);
+                }
+                
+                // out queue
+                final LinkedBlockingQueue<ScanResult> readyHosts = new LinkedBlockingQueue<>();
+                
+                // create and start worker threads
+                ArrayList<Thread> workerThreads = new ArrayList<>(this.scanWorkerThreadCount);
+                for (int i = 0; i < this.scanWorkerThreadCount; ++i)
+                {
+                    Thread workerThread = new ScanningWorkerThread(unscannedHosts, readyHosts, this);
+                    workerThreads.add(workerThread);
+                    workerThread.start();
+                }
+                
+                // create buttons for each ready host
+                Thread buttonCreatorThread = new Thread() { @Override public void run() 
+                {
+                    while (!ScanningMasterThread.stopFlag)
+                    {
+                        try 
+                        {
+                            final ScanResult scanResult = readyHosts.poll(self.scanConnectionTimeoutMs, TimeUnit.MILLISECONDS);
+                            if (scanResult == null) { continue; }
+                            
+                            // add to zone list
+                            self.userInterface.addReadyScanResult(scanResult);
+                        }
+                        catch (InterruptedException ex)
+                        {
+                            self.userInterface.handleInterruptedExceptionDuringButtonCreation(ex);
+                            break;
+                        }
+                    }
+                }};
+                buttonCreatorThread.start();
+                
+                try
+                {
+                    // join worker threads
+                    for (Thread workerThread : workerThreads)
+                    {
+                        workerThread.join();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.userInterface.handleExceptionDuringWorkerThreadJoin(ex);
+                }
+                finally
+                {
+                    synchronized (ScanningMasterThread.statusLock)
+                    {
+                        ScanningMasterThread.status = Protocol.STATUS_READY;
+                        ScanningMasterThread.stopFlag = true;
+                    }
+                    this.userInterface.showScanFinishedSuccessfully();
+                }
+            }
+        }
+        
+        /**
+         * The functionality contract that a UI needs to fulfil in order for it 
+         * to be able to communicate with a ScanningMasterThread.
+         */
+        public static interface ScanningUserInterface
+        {
+            public void handleExceptionDuringScanWorkerExecution(Exception ex);
+            // {
+            //     Log.e(APP_NAME, ex.toString());
+            // }
+            
+            public void incrementScanProgressBy(int amount);
+            // {
+            //     activity.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         ProgressBar progressBarScan = (ProgressBar)activity.findViewById(R.id.progressBarScan);
+            //         progressBarScan.incrementProgressBy(amount);
+            //     }});
+            // }
+            
+            public String getLocalAddressPrefix() throws Exception;
+            // {
+            //     TransmitterSelectionActivity.getLocalAddressPrefix(activity);
+            // }
+            
+            public void handleExceptionDuringScanStart(Exception ex);
+            // {
+            //     Log.e(APP_NAME, ex.getMessage());
+            //     final String errorMessage = "Error starting scan";
+            //     activity.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         Toast toast = Toast.makeText(activity, errorMessage, Toast.LENGTH_SHORT);
+            //         toast.show();
+            //     }});
+            // }
+            
+            public void resetScanReadyZonesAndProgress();
+            // {
+            //     activity.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         LinearLayout linearLayoutReadyZones = (LinearLayout)activity.findViewById(R.id.linearLayoutReadyZones);
+            //         linearLayoutReadyZones.removeAllViews();
+            //         ProgressBar progressBarScan = (ProgressBar)activity.findViewById(R.id.progressBarScan);
+            //         progressBarScan.setProgress(0);
+            //     }});
+            // }
+            
+            public void addReadyScanResult(ScanResult scanResult);
+            // {
+            //     Log.e(APP_NAME, String.format("Found %s (%s)", scanResult.host, scanResult.name));
+            //     activity.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         LinearLayout linearLayoutReadyZones = (LinearLayout)activity.findViewById(R.id.linearLayoutReadyZones);
+            //         Button buttonResult = new Button(activity);
+            //         buttonResult.setText(String.format("%s (%s)", scanResult.name, scanResult.host));
+            //         buttonResult.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v)
+            //         {
+            //             EditText editTentativeHost = (EditText)activity.findViewById(R.id.editTentativeHost);
+            //             EditText editTentativeName = (EditText)activity.findViewById(R.id.editTentativeName);
+            //             
+            //             editTentativeHost.setText(scanResult.host);
+            //             editTentativeName.setText(scanResult.name);
+            //         }});
+            //         linearLayoutReadyZones.addView(buttonResult);
+            //     }});
+            // }
+            
+            public void handleInterruptedExceptionDuringButtonCreation(InterruptedException ex);
+            // {
+            //     Log.e(APP_NAME, ex.toString());
+            // }
+            
+            public void handleExceptionDuringWorkerThreadJoin(Exception ex);
+            // {
+            //     Log.e(APP_NAME, ex.getMessage());
+            //     final String errorMessage = "Error while scanning";
+            //     activity.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         Toast toast = Toast.makeText(activity, errorMessage, Toast.LENGTH_SHORT);
+            //         toast.show();
+            //     }});
+            // }
+            
+            public void showScanFinishedSuccessfully();
+            // {
+            //     final String message = "Finished Scan";
+            //     activity.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         Toast toast = Toast.makeText(activity, message, Toast.LENGTH_SHORT);
+            //         toast.show();
+            //         ProgressBar progressBarScan = (ProgressBar)activity.findViewById(R.id.progressBarScan);
+            //         progressBarScan.setProgress(progressBarScan.getMax());
+            //     }});
+            // }
+        }
+        
+    }
+    // end ReceiverUtilities
     
 }
