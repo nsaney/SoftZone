@@ -129,7 +129,7 @@ public class SoftZoneTransmitter
         {
             throw new IllegalStateException("No available mixers.");
         }
-        System.out.println("Please select the mixer you would like to use: ");
+        System.out.println("Please select the recording mixer you would like to use: ");
         for (int i = 0; i < mixerInfos.length; ++i)
         {
             System.out.printf("[%2d] %s %s \n", i, mixerInfos[i].getDescription(), mixerInfos[i].getName());
@@ -154,7 +154,7 @@ public class SoftZoneTransmitter
         
         // get target line info
         Line.Info[] targetLineInfos = chosenMixer.getTargetLineInfo();
-        System.out.println("Please select the target line you would like to use: ");
+        System.out.println("Please select the target line you would like to record from: ");
         for (int i = 0; i < targetLineInfos.length; ++i)
         {
             System.out.printf("[%2d] %s \n", i, targetLineInfos[i]);
@@ -165,7 +165,7 @@ public class SoftZoneTransmitter
         System.out.println("");
         
         // get source mixer info
-        System.out.println("Please select the source mixer you would like to use: ");
+        System.out.println("Please select the source mixer you would like to play back locally to: ");
         System.out.println("[-1] No source mixer (null)");
         for (int i = 0; i < mixerInfos.length; ++i)
         {
