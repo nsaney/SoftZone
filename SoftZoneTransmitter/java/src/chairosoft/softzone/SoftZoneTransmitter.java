@@ -519,7 +519,23 @@ public class SoftZoneTransmitter
         // Constructor
         private ReceiverUtilities() { throw new UnsupportedOperationException(); }
         
-        // Static Inner Classes
+        // Static Inner Classes (Scanning)
+        /**
+         * A user interface that communicates with a ScanningMasterThread.
+         */
+        public static interface ScanningUserInterface
+        {
+            void handleExceptionDuringScanWorkerExecution(Exception ex);
+            void incrementScanProgressBy(int amount);
+            String getLocalAddressPrefix() throws Exception;
+            void handleExceptionDuringScanStart(Exception ex);
+            void resetScanReadyZonesAndProgress();
+            void addReadyScanResult(ScanResult scanResult);
+            void handleInterruptedExceptionDuringButtonCreation(InterruptedException ex);
+            void handleExceptionDuringWorkerThreadJoin(Exception ex);
+            void showScanFinishedSuccessfully();
+        }
+        
         /**
          * The result of a scan for a transmitter.
          */
@@ -618,11 +634,11 @@ public class SoftZoneTransmitter
         public static class ScanningMasterThread extends Thread
         {
             // Locks
-            public static final Object statusLock = new Object();
+            private static final Object statusLock = new Object();
             
             // Static Variables
-            protected static volatile byte status = Protocol.STATUS_READY;
-            public static volatile boolean stopFlag = true;
+            private static volatile byte status = Protocol.STATUS_READY;
+            private static volatile boolean stopFlag = true;
             
             // Instance Fields
             public final ScanningUserInterface userInterface;
@@ -642,6 +658,9 @@ public class SoftZoneTransmitter
                 this.scanWorkerThreadCount = _scanWorkerThreadCount;
                 this.scanConnectionTimeoutMs = _scanConnectionTimeoutMs;
             }
+            
+            // Static Methods
+            public static void stopScanning() { ScanningMasterThread.stopFlag = true; }
             
             // Instance Methods
             @Override
@@ -738,23 +757,6 @@ public class SoftZoneTransmitter
                     this.userInterface.showScanFinishedSuccessfully();
                 }
             }
-        }
-        
-        /**
-         * The functionality contract that a UI needs to fulfil in order for it 
-         * to be able to communicate with a ScanningMasterThread.
-         */
-        public static interface ScanningUserInterface
-        {
-            public void handleExceptionDuringScanWorkerExecution(Exception ex);
-            public void incrementScanProgressBy(int amount);
-            public String getLocalAddressPrefix() throws Exception;
-            public void handleExceptionDuringScanStart(Exception ex);
-            public void resetScanReadyZonesAndProgress();
-            public void addReadyScanResult(ScanResult scanResult);
-            public void handleInterruptedExceptionDuringButtonCreation(InterruptedException ex);
-            public void handleExceptionDuringWorkerThreadJoin(Exception ex);
-            public void showScanFinishedSuccessfully();
         }
         
     }
