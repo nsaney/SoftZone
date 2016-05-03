@@ -1,6 +1,7 @@
 package chairosoft.softzone;
 
 import static chairosoft.softzone.SoftZoneTransmitter.*;
+import static chairosoft.softzone.SoftZoneTransmitter.ReceiverUtilities.*;
 import static chairosoft.softzone.SoftZoneReceiverActivity.*;
 
 import android.app.Activity;
@@ -45,11 +46,14 @@ import java.util.concurrent.TimeUnit;
  * This activity allows the user to (search for and) select 
  * a SoftZone Transmitter (IP and port) to receive from.
  */
-public class TransmitterSelectionActivity extends Activity
+public class TransmitterSelectionActivity extends Activity implements ScanningUserInterface
 {
     // Constants
     public static final int SCAN_WORKER_THREAD_COUNT = 16;
     public static final int SCAN_CONNECTION_TIMEOUT_MS = 500;
+    
+    // Instance Fields
+    private final TransmitterSelectionActivity self = this;
     
     // Static Methods
     public static String getLocalAddressPrefix(Activity activity) throws UnknownHostException
@@ -114,7 +118,7 @@ public class TransmitterSelectionActivity extends Activity
     public void onPause()
     {
         super.onPause();
-        ScanningMasterThread.stopFlag = true;
+        ScanningMasterThread.stopScanning();
     }
     
     public void startScan(View view)
@@ -124,7 +128,7 @@ public class TransmitterSelectionActivity extends Activity
             EditText editTentativePort = (EditText)this.findViewById(R.id.editTentativePort);
             String portText = editTentativePort.getText().toString().trim();
             int port = Integer.parseInt(portText);
-            ScanningMasterThread scanningThread = new ScanningMasterThread(this, port);
+            ScanningMasterThread scanningThread = new ScanningMasterThread(this, port, SCAN_WORKER_THREAD_COUNT, SCAN_CONNECTION_TIMEOUT_MS);
             scanningThread.start();
         }
         catch (Exception ex)
@@ -137,7 +141,7 @@ public class TransmitterSelectionActivity extends Activity
     
     public void stopScan(View view)
     {
-        ScanningMasterThread.stopFlag = true;
+        ScanningMasterThread.stopScanning();
     }
     
     public static final String EXTRA_SELECTED_NAME = "selectedName";
@@ -207,252 +211,96 @@ public class TransmitterSelectionActivity extends Activity
     }
     
     
-    //////////////////////////
-    // Static Inner Classes //
-    //////////////////////////
+    ///////////////////////////////////
+    // ScanningUserInterface methods //
+    ///////////////////////////////////
     
-    public static class ScanResult
+    public void handleExceptionDuringScanWorkerExecution(Exception ex)
     {
-        // Instance Fields
-        public final String host;
-        public final String name;
-        
-        // Constructor
-        public ScanResult(String _host, String _name)
-        {
-            this.host = _host;
-            this.name = _name;
-        }
+        Log.e(APP_NAME, ex.toString());
     }
     
-    public static class ScanningWorkerThread extends Thread
+    public void incrementScanProgressBy(final int amount)
     {
-        // Instance Fields
-        protected final ConcurrentLinkedQueue<String> unscannedHosts;
-        protected final LinkedBlockingQueue<ScanResult> readyHosts;
-        protected final ScanningMasterThread masterThread;
-        
-        // Constructor
-        public ScanningWorkerThread(ConcurrentLinkedQueue<String>   _unscannedHosts, 
-                                    LinkedBlockingQueue<ScanResult> _readyHosts,
-                                    ScanningMasterThread            _masterThread
-        )
+        this.runOnUiThread(new Runnable() { @Override public void run()
         {
-            this.unscannedHosts = _unscannedHosts;
-            this.readyHosts = _readyHosts;
-            this.masterThread = _masterThread;
-        }
-        
-        // Instance Methods
-        @Override 
-        public void run()
-        {
-            final ScanningWorkerThread self = this;
-            while (!ScanningMasterThread.stopFlag)
-            {
-                String host = this.unscannedHosts.poll();
-                if (host == null) { break; }
-                
-                Socket socket = new Socket();
-                InetSocketAddress socketAddress = new InetSocketAddress(host, this.masterThread.port);
-                try
-                {
-                    socket.connect(socketAddress, SCAN_CONNECTION_TIMEOUT_MS);
-                    try ( InputStream serverIn = socket.getInputStream()
-                        ; OutputStream serverOut = socket.getOutputStream()
-                    )
-                    {
-                        serverOut.write(Protocol.REQUEST_STATUS());
-                        byte[] statusBuffer = new byte[1];
-                        int statusBytesRead = serverIn.read(statusBuffer);
-                        if (statusBytesRead > 0)
-                        {
-                            byte[] nameBuffer = new byte[Protocol.STATUS_NAME_MAX_LENGTH];
-                            int nameBytesRead = serverIn.read(nameBuffer);
-                            if (nameBytesRead > 0 && statusBuffer[0] == Protocol.STATUS_READY)
-                            {
-                                String name = new String(nameBuffer, 0, nameBytesRead, Protocol.STATUS_NAME_CHARSET);
-                                ScanResult result = new ScanResult(host, name);
-                                this.readyHosts.offer(result);
-                            }
-                        }
-                    }
-                }
-                catch (SocketTimeoutException ex)
-                {
-                    // do nothing
-                }
-                catch (Exception ex)
-                {
-                    Log.e(APP_NAME, ex.toString());
-                }
-                finally
-                {
-                    this.masterThread.activity.runOnUiThread(new Runnable() { @Override public void run()
-                    {
-                        ProgressBar progressBarScan = (ProgressBar)self.masterThread.activity.findViewById(R.id.progressBarScan);
-                        progressBarScan.incrementProgressBy(1);
-                    }});
-                }
-            }
-        }
+            ProgressBar progressBarScan = (ProgressBar)self.findViewById(R.id.progressBarScan);
+            progressBarScan.incrementProgressBy(amount);
+        }});
     }
     
-    public static class ScanningMasterThread extends Thread
+    public String getLocalAddressPrefix() throws Exception
     {
-        // Locks
-        public static final Object statusLock = new Object();
-        
-        // Static Variables
-        protected static volatile byte status = Protocol.STATUS_READY;
-        public static volatile boolean stopFlag = true;
-        
-        // Instance Fields
-        public final TransmitterSelectionActivity activity;
-        public final int port;
-        
-        // Constructor
-        public ScanningMasterThread(TransmitterSelectionActivity _activity, int _port)
+        return TransmitterSelectionActivity.getLocalAddressPrefix(this);
+    }
+    
+    public void handleExceptionDuringScanStart(Exception ex)
+    {
+        Log.e(APP_NAME, ex.getMessage());
+        final String errorMessage = "Error starting scan";
+        this.runOnUiThread(new Runnable() { @Override public void run()
         {
-            this.activity = _activity;
-            this.port = _port;
-        }
-        
-        // Instance Methods
-        @Override
-        public void run()
+            Toast toast = Toast.makeText(self, errorMessage, Toast.LENGTH_SHORT);
+            toast.show();
+        }});
+    }
+    
+    public void resetScanReadyZonesAndProgress()
+    {
+        this.runOnUiThread(new Runnable() { @Override public void run()
         {
-            final ScanningMasterThread self = this;
-            String localAddressPrefix = null;
-            synchronized (ScanningMasterThread.statusLock)
+            LinearLayout linearLayoutReadyZones = (LinearLayout)self.findViewById(R.id.linearLayoutReadyZones);
+            linearLayoutReadyZones.removeAllViews();
+            ProgressBar progressBarScan = (ProgressBar)self.findViewById(R.id.progressBarScan);
+            progressBarScan.setProgress(0);
+        }});
+    }
+    
+    public void addReadyScanResult(final ScanResult scanResult)
+    {
+        Log.e(APP_NAME, String.format("Found %s (%s)", scanResult.host, scanResult.name));
+        this.runOnUiThread(new Runnable() { @Override public void run()
+        {
+            LinearLayout linearLayoutReadyZones = (LinearLayout)self.findViewById(R.id.linearLayoutReadyZones);
+            Button buttonResult = new Button(self);
+            buttonResult.setText(String.format("%s (%s)", scanResult.name, scanResult.host));
+            buttonResult.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v)
             {
-                if (ScanningMasterThread.status != Protocol.STATUS_READY)
-                {
-                    return;
-                }
+                EditText editTentativeHost = (EditText)self.findViewById(R.id.editTentativeHost);
+                EditText editTentativeName = (EditText)self.findViewById(R.id.editTentativeName);
                 
-                try 
-                {
-                    // get local address prefix
-                    localAddressPrefix = TransmitterSelectionActivity.getLocalAddressPrefix(this.activity);
-                }
-                catch (Exception ex)
-                {
-                    Log.e(APP_NAME, ex.getMessage());
-                    final String errorMessage = "Error starting scan";
-                    this.activity.runOnUiThread(new Runnable() { @Override public void run()
-                    {
-                        Toast toast = Toast.makeText(self.activity, errorMessage, Toast.LENGTH_SHORT);
-                        toast.show();
-                    }});
-                    return;
-                }
-                
-                ScanningMasterThread.status = Protocol.STATUS_BUSY;
-                ScanningMasterThread.stopFlag = false;
-            }
-            
-            // clear zone button list
-            this.activity.runOnUiThread(new Runnable() { @Override public void run()
-            {
-                LinearLayout linearLayoutReadyZones = (LinearLayout)self.activity.findViewById(R.id.linearLayoutReadyZones);
-                linearLayoutReadyZones.removeAllViews();
-                ProgressBar progressBarScan = (ProgressBar)self.activity.findViewById(R.id.progressBarScan);
-                progressBarScan.setProgress(0);
+                editTentativeHost.setText(scanResult.host);
+                editTentativeName.setText(scanResult.name);
             }});
-            
-            
-            // in queue
-            ConcurrentLinkedQueue<String> unscannedHosts = new ConcurrentLinkedQueue<>();
-            for (int i = 0; i < 255; ++i)
-            {
-                String nextUnscannedHost = localAddressPrefix + i;
-                unscannedHosts.add(nextUnscannedHost);
-            }
-            
-            // out queue
-            final LinkedBlockingQueue<ScanResult> readyHosts = new LinkedBlockingQueue<>();
-            
-            // create and start worker threads
-            ArrayList<Thread> workerThreads = new ArrayList<>(SCAN_WORKER_THREAD_COUNT);
-            for (int i = 0; i < SCAN_WORKER_THREAD_COUNT; ++i)
-            {
-                Thread workerThread = new ScanningWorkerThread(unscannedHosts, readyHosts, this);
-                workerThreads.add(workerThread);
-                workerThread.start();
-            }
-            
-            // create buttons for each ready host
-            Thread buttonCreatorThread = new Thread() { @Override public void run() 
-            {
-                while (!ScanningMasterThread.stopFlag)
-                {
-                    try 
-                    {
-                        final ScanResult scanResult = readyHosts.poll(SCAN_CONNECTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-                        if (scanResult == null) { continue; }
-                        
-                        // add to zone list
-                        Log.e(APP_NAME, String.format("Found %s (%s)", scanResult.host, scanResult.name));
-                        self.activity.runOnUiThread(new Runnable() { @Override public void run()
-                        {
-                            LinearLayout linearLayoutReadyZones = (LinearLayout)self.activity.findViewById(R.id.linearLayoutReadyZones);
-                            Button buttonResult = new Button(self.activity);
-                            buttonResult.setText(String.format("%s (%s)", scanResult.name, scanResult.host));
-                            buttonResult.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v)
-                            {
-                                EditText editTentativeHost = (EditText)self.activity.findViewById(R.id.editTentativeHost);
-                                EditText editTentativeName = (EditText)self.activity.findViewById(R.id.editTentativeName);
-                                
-                                editTentativeHost.setText(scanResult.host);
-                                editTentativeName.setText(scanResult.name);
-                            }});
-                            linearLayoutReadyZones.addView(buttonResult);
-                        }});
-                    }
-                    catch (InterruptedException ex)
-                    {
-                        Log.e(APP_NAME, ex.toString());
-                        break;
-                    }
-                }
-            }};
-            buttonCreatorThread.start();
-            
-            try
-            {
-                // join worker threads
-                for (Thread workerThread : workerThreads)
-                {
-                    workerThread.join();
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.e(APP_NAME, ex.getMessage());
-                final String errorMessage = "Error while scanning";
-                this.activity.runOnUiThread(new Runnable() { @Override public void run()
-                {
-                    Toast toast = Toast.makeText(self.activity, errorMessage, Toast.LENGTH_SHORT);
-                    toast.show();
-                }});
-            }
-            finally
-            {
-                synchronized (ScanningMasterThread.statusLock)
-                {
-                    ScanningMasterThread.status = Protocol.STATUS_READY;
-                    ScanningMasterThread.stopFlag = true;
-                }
-                final String message = "Finished Scan";
-                this.activity.runOnUiThread(new Runnable() { @Override public void run()
-                {
-                    Toast toast = Toast.makeText(self.activity, message, Toast.LENGTH_SHORT);
-                    toast.show();
-                    ProgressBar progressBarScan = (ProgressBar)self.activity.findViewById(R.id.progressBarScan);
-                    progressBarScan.setProgress(progressBarScan.getMax());
-                }});
-            }
-        }
+            linearLayoutReadyZones.addView(buttonResult);
+        }});
+    }
+    
+    public void handleInterruptedExceptionDuringButtonCreation(InterruptedException ex)
+    {
+        Log.e(APP_NAME, ex.toString());
+    }
+    
+    public void handleExceptionDuringWorkerThreadJoin(Exception ex)
+    {
+        Log.e(APP_NAME, ex.getMessage());
+        final String errorMessage = "Error while scanning";
+        this.runOnUiThread(new Runnable() { @Override public void run()
+        {
+            Toast toast = Toast.makeText(self, errorMessage, Toast.LENGTH_SHORT);
+            toast.show();
+        }});
+    }
+    
+    public void showScanFinishedSuccessfully()
+    {
+        final String message = "Finished Scan";
+        this.runOnUiThread(new Runnable() { @Override public void run()
+        {
+            Toast toast = Toast.makeText(self, message, Toast.LENGTH_SHORT);
+            toast.show();
+            ProgressBar progressBarScan = (ProgressBar)self.findViewById(R.id.progressBarScan);
+            progressBarScan.setProgress(progressBarScan.getMax());
+        }});
     }
 }
