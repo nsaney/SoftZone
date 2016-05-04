@@ -403,6 +403,7 @@ public class SoftZoneReceiverProgram
         
         // Set up transmitter selection GUI
         DynamicUI.dialogSelectTransmitter.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+        DynamicUI.dialogSelectTransmitter.addComponentListener(TRANSMITTER_SELECTION_COMPONENT_LISTENER);
         DynamicUI.dialogSelectTransmitter.setTitle(LABEL_SELECT_TRANSMITTER);
         DynamicUI.dialogSelectTransmitter.setResizable(false);
         DynamicUI.dialogSelectTransmitter.setLocationRelativeTo(null);
@@ -425,9 +426,9 @@ public class SoftZoneReceiverProgram
     }
     
     
-    //////////////////////
-    // Action Listeners //
-    //////////////////////
+    ///////////////
+    // Listeners //
+    ///////////////
     
     // Main GUI
     private static final ActionListener SELECT_TRANSMITTER_LISTENER = e ->
@@ -449,12 +450,22 @@ public class SoftZoneReceiverProgram
     // Transmitter Selection GUI
     private static final ActionListener SELECT_SERVER_LISTENER = e ->
     {
-        System.out.println("select server??");
+        System.out.println("select server?? then close");
+        DynamicUI.dialogSelectTransmitter.setVisible(false);
     };
     
     private static final ActionListener CANCEL_SELECTION_LISTENER = e ->
     {
-        System.out.println("cancel selection??");
+        System.out.println("cancel selection?? then close");
+        DynamicUI.dialogSelectTransmitter.setVisible(false);
+    };
+    
+    private static final ComponentListener TRANSMITTER_SELECTION_COMPONENT_LISTENER = new ComponentAdapter()
+    {
+        @Override public void componentHidden(ComponentEvent e)
+        {
+            System.out.println("transmitter selection component hidden!");
+        }
     };
     
     // private static final ActionListener ASDF = ;
