@@ -31,6 +31,9 @@ import java.util.function.Predicate;
 import java.awt.*;
 import javax.swing.*;
 
+import java.awt.event.*;
+import javax.swing.event.*;
+
 import java.awt.image.*;
 import javax.imageio.*;
 
@@ -124,11 +127,7 @@ public class SoftZoneReceiverProgram
                 
                 // Select Transmitter button
                 JButton buttonSelectTransmitter = new JButton(LABEL_SELECT_TRANSMITTER);
-                buttonSelectTransmitter.addActionListener(e ->
-                {
-                    // show Selecty Transmitter dialog
-                    DynamicUI.dialogSelectTransmitter.setVisible(true);
-                });
+                buttonSelectTransmitter.addActionListener(SELECT_TRANSMITTER_LISTENER);
                 c.gridx = 0;
                 c.gridwidth = totalGridWidth;
                 panelReceiver.add(buttonSelectTransmitter, c);
@@ -197,19 +196,13 @@ public class SoftZoneReceiverProgram
                 
                 // buttonStartStreaming
                 JButton buttonStartStreaming = new JButton("Start Streaming");
-                buttonStartStreaming.addActionListener(e ->
-                {
-                    System.out.println("start streaming??");
-                });
+                buttonStartStreaming.addActionListener(START_STREAMING_LISTENER);
                 c.gridx = 0;
                 panelReceiver.add(buttonStartStreaming, c);
                 
                 // buttonStopStreaming
                 JButton buttonStopStreaming = new JButton("Stop Streaming");
-                buttonStopStreaming.addActionListener(e ->
-                {
-                    System.out.println("stop streaming??");
-                });
+                buttonStopStreaming.addActionListener(STOP_STREAMING_LISTENER);
                 c.gridx = 1;
                 panelReceiver.add(buttonStopStreaming, c);
                 
@@ -310,19 +303,13 @@ public class SoftZoneReceiverProgram
                 
                 // buttonSelectServer
                 JButton buttonSelectServer = new JButton("Select");
-                buttonSelectServer.addActionListener(e ->
-                {
-                    System.out.println("select server??");
-                });
+                buttonSelectServer.addActionListener(SELECT_SERVER_LISTENER);
                 c.gridx = 0;
                 panelTransmitterSelection.add(buttonSelectServer, c);
                 
                 // buttonCancelSelection
                 JButton buttonCancelSelection = new JButton("Cancel");
-                buttonCancelSelection.addActionListener(e ->
-                {
-                    System.out.println("cancel selection??");
-                });
+                buttonCancelSelection.addActionListener(CANCEL_SELECTION_LISTENER);
                 c.gridx = 1;
                 panelTransmitterSelection.add(buttonCancelSelection, c);
                 
@@ -396,20 +383,20 @@ public class SoftZoneReceiverProgram
                 //// Next Row
                 c.gridy += 1;
                 
-                // buttonStartScanning
-                // buttonStopScanning
+                // TODO: buttonStartScanning
+                // TODO: buttonStopScanning
                 
                 
                 //// Next Row
                 c.gridy += 1;
                 
-                // panelScanProgress
+                // TODO: panelScanProgress
                 
                 
                 //// Next Row
                 c.gridy += 1;
                 
-                // List of transmitters
+                // TODO: List of transmitters
             }
             DynamicUI.dialogSelectTransmitter.getContentPane().add(panelTransmitterSelection);
         }
@@ -437,4 +424,38 @@ public class SoftZoneReceiverProgram
         frame.setVisible(true);
     }
     
+    
+    //////////////////////
+    // Action Listeners //
+    //////////////////////
+    
+    // Main GUI
+    private static final ActionListener SELECT_TRANSMITTER_LISTENER = e ->
+    {
+        // show Select Transmitter dialog
+        DynamicUI.dialogSelectTransmitter.setVisible(true);
+    };
+    
+    private static final ActionListener START_STREAMING_LISTENER = e ->
+    {
+        System.out.println("start streaming??");
+    };
+    
+    private static final ActionListener STOP_STREAMING_LISTENER = e ->
+    {
+        System.out.println("stop streaming??");
+    };
+    
+    // Transmitter Selection GUI
+    private static final ActionListener SELECT_SERVER_LISTENER = e ->
+    {
+        System.out.println("select server??");
+    };
+    
+    private static final ActionListener CANCEL_SELECTION_LISTENER = e ->
+    {
+        System.out.println("cancel selection??");
+    };
+    
+    // private static final ActionListener ASDF = ;
 }
