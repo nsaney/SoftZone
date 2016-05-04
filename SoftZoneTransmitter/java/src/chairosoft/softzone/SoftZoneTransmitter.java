@@ -12,6 +12,8 @@ package chairosoft.softzone;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -755,6 +757,354 @@ public class SoftZoneTransmitter
                         ScanningMasterThread.stopFlag = true;
                     }
                     this.userInterface.showScanFinishedSuccessfully();
+                }
+            }
+        }
+        
+        // Static Inner Classes (Streaming)
+        /**
+         * A user interface that communicates with a StreamingPlaybackMasterThread.
+         */
+        public static interface StreamingPlaybackUserInterface
+        {
+            public StreamingPlaybackDevice getPlaybackDevice(int bufferLengthMs);
+            
+            public void updateMonitors(byte leftSampleHighByte, byte rightSampleHighByte);
+            // {
+            //     final int leftLevelLinear = MonitorUpdatingThread.getLinearLevel(leftSampleHighByte);
+            //     final int rightLevelLinear = MonitorUpdatingThread.getLinearLevel(rightSampleHighByte);
+            //     //final int leftLevelDecibel = MonitorUpdatingThread.getDecibelLevel(leftLevelLinear);
+            //     //final int rightLevelDecibel = MonitorUpdatingThread.getDecibelLevel(rightLevelLinear);
+            //     this.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         ProgressBar progressBarLeftLevel = (ProgressBar)self.findViewById(R.id.progressBarLeftLevel);
+            //         ProgressBar progressBarRightLevel = (ProgressBar)self.findViewById(R.id.progressBarRightLevel);
+            //         progressBarLeftLevel.setProgress(leftLevelLinear);
+            //         progressBarRightLevel.setProgress(rightLevelLinear);
+            //     }});
+            // }
+            
+            public void handleExceptionDuringMonitorUpdating(Exception ex);
+            // {
+            //     Log.e(APP_NAME, ex.toString());
+            // }
+            
+            public String getStatusText(int bufferLengthMs);
+            // {
+            //     String label_streaming_with_buffer_size = this.getString(R.string.label_streaming_with_buffer_size);
+            //     return String.format("%s %sms", label_streaming_with_buffer_size, bufferLengthMs);
+            // }
+            
+            public void setStatusText(String statusText);
+            // {
+            //     this.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         ((TextView)self.findViewById(R.id.textStreamStatus)).setText(statusText);
+            //     }});
+            // }
+            
+            public void handleExceptionDuringSocketConnection(Exception ex);
+            // {
+            //     Log.e(APP_NAME, ex.getMessage());
+            //     
+            //     final String message = String.format("Connection timeout (%sms)", CONNECTION_TIMEOUT_MS);
+            //     this.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         Toast toast = Toast.makeText(self, message, Toast.LENGTH_SHORT);
+            //         toast.show();
+            //     }});
+            // }
+            
+            public void showShortPopupMessage(String message);
+            // {
+            //     this.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         Toast toast = Toast.makeText(self, message, Toast.LENGTH_SHORT);
+            //         toast.show();
+            //     }});
+            // }
+            
+            public void logStreamingStatistics(double bytesPerSecond, double averageReadTime, double averageWriteTime);
+            // {
+            //     Log.e(APP_NAME, "bytes per second = " + bytesPerSecond);
+            //     Log.e(APP_NAME, "average read time  (ms) = " + averageReadTime);
+            //     Log.e(APP_NAME, "average write time (ms) = " + averageWriteTime);
+            // }
+            
+            public void handleExceptionDuringStreaming(Exception ex);
+            // {
+            //     Log.e(APP_NAME, ex.getMessage());
+            // }
+            
+            public void clearMonitorLevelsAndStatus();
+            // {
+            //     this.runOnUiThread(new Runnable() { @Override public void run()
+            //     {
+            //         ProgressBar progressBarLeftLevel = (ProgressBar)self.findViewById(R.id.progressBarLeftLevel);
+            //         ProgressBar progressBarRightLevel = (ProgressBar)self.findViewById(R.id.progressBarRightLevel);
+            //         progressBarLeftLevel.setProgress(0);
+            //         progressBarRightLevel.setProgress(0);
+            //         ((TextView)self.findViewById(R.id.textStreamStatus)).setText(R.string.label_not_streaming);
+            //     }});
+            // }
+        }
+        
+        /**
+         * A playback device used for streaming.
+         */
+        public static abstract class StreamingPlaybackDevice implements AutoCloseable
+        {
+            // Instance Fields
+            public final int requestedBufferSizeInBytes;
+            
+            // Constructor
+            public StreamingPlaybackDevice(int _requestedBufferSizeInBytes)
+            {
+                this.requestedBufferSizeInBytes = _requestedBufferSizeInBytes;
+            }
+            
+            // Instance Methods
+            public abstract void initialize();
+            public abstract int write(byte[] buffer, int offset, int length);
+        }
+        
+        /**
+         * This thread takes care of updating the monitors for
+         * currently playing audio.
+         */
+        public static class MonitorUpdatingThread extends Thread
+        {
+            // Constants
+            public static final int MONITOR_BUFFER_LENGTH = 4;
+            public static final int MONITOR_LEFT_INDEX = 1;
+            public static final int MONITOR_RIGHT_INDEX = 3;
+            public static final int MIN_DB = (int)(20 * Math.log10(1 / 128.0));
+            public static final int MAX_DB_UNADJUSTED = -MIN_DB;
+            
+            // Instance Fields
+            public final PipedInputStream levelIn;
+            public final StreamingPlaybackMasterThread masterThread;
+            
+            // Constructor
+            public MonitorUpdatingThread(PipedInputStream _levelIn, StreamingPlaybackMasterThread _masterThread)
+            {
+                this.levelIn = _levelIn;
+                this.masterThread = _masterThread;
+            }
+            
+            // Static Methods
+            public static int getLinearLevel(byte sampleHighByte)
+            {
+                int amplitude = Math.abs((int)sampleHighByte);
+                if (amplitude < 0) { amplitude = 0; }
+                else if (amplitude > 128) { amplitude = 128; }
+                return amplitude;
+            }
+            
+            public static int getDecibelLevel(int linearLevel)
+            {
+                if (linearLevel == 0) { linearLevel = 1; }
+                double db = 20 * Math.log10(linearLevel / 128.0);
+                int level = MAX_DB_UNADJUSTED + (int)db;
+                return (int)(level * 128.0 / MAX_DB_UNADJUSTED);
+            }
+            
+            // Instance Methods
+            @Override 
+            public void run()
+            {
+                try
+                {
+                    byte[] levelBuffer = new byte[MONITOR_BUFFER_LENGTH];
+                    boolean ever = true;
+                    for (;ever;)
+                    {
+                        int bytesRead = levelIn.read(levelBuffer, 0, MONITOR_BUFFER_LENGTH);
+                        if (bytesRead < MONITOR_BUFFER_LENGTH) { continue; }
+                        
+                        this.masterThread.userInterface.updateMonitors(levelBuffer[MONITOR_LEFT_INDEX], levelBuffer[MONITOR_RIGHT_INDEX]);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.masterThread.userInterface.handleExceptionDuringMonitorUpdating(ex);
+                }
+            }
+        }
+        
+        
+        /**
+         * This thread receives and plays audio from the selected server.
+         */
+        public static class StreamingPlaybackMasterThread extends Thread
+        {
+            // Locks
+            public static final Object statusLock = new Object();
+            
+            // Static Variables
+            private static volatile byte status = Protocol.STATUS_READY;
+            private static volatile boolean stopFlag = true;
+            private static volatile StreamingPlaybackMasterThread activeThread = null;
+            
+            // Instance Fields
+            public volatile StreamingPlaybackUserInterface userInterface;
+            public final String name;
+            public final String host;
+            public final int port;
+            public final short bufferLengthMs;
+            public final String statusText;
+            public final int connectionTimeoutMs;
+            
+            // Constructor
+            public StreamingPlaybackMasterThread(StreamingPlaybackUserInterface _userInterface, 
+                                                 String                         _name, 
+                                                 String                         _host, 
+                                                 int                            _port, 
+                                                 short                          _bufferLengthMs, 
+                                                 int                            _connectionTimeoutMs
+            )
+            {
+                this.userInterface = _userInterface;
+                this.name = _name;
+                this.host = _host;
+                this.port = _port;
+                this.bufferLengthMs = _bufferLengthMs;
+                this.statusText = this.userInterface.getStatusText(this.bufferLengthMs);
+                this.connectionTimeoutMs = _connectionTimeoutMs;
+            }
+            
+            // Static Methods
+            public static void stopPlayback() { StreamingPlaybackMasterThread.stopFlag = true; }
+            public static StreamingPlaybackMasterThread getActiveThread() { return StreamingPlaybackMasterThread.activeThread; }
+            
+            // Instance Methods
+            @Override
+            public void run()
+            {
+                final StreamingPlaybackMasterThread self = this;
+                synchronized (StreamingPlaybackMasterThread.statusLock)
+                {
+                    if (StreamingPlaybackMasterThread.status != Protocol.STATUS_READY) 
+                    {
+                        return;
+                    }
+                    StreamingPlaybackMasterThread.status = Protocol.STATUS_BUSY;
+                    StreamingPlaybackMasterThread.stopFlag = false;
+                    StreamingPlaybackMasterThread.activeThread = this;
+                }
+                
+                // open connection
+                Socket socket = new Socket();
+                InetSocketAddress serverAddress = new InetSocketAddress(this.host, this.port);
+                try
+                {
+                    socket.connect(serverAddress, this.connectionTimeoutMs);
+                }
+                catch (Exception ex)
+                {
+                    this.userInterface.handleExceptionDuringSocketConnection(ex);
+                    
+                    synchronized (StreamingPlaybackMasterThread.statusLock)
+                    {
+                        StreamingPlaybackMasterThread.status = Protocol.STATUS_READY;
+                        StreamingPlaybackMasterThread.stopFlag = true;
+                        StreamingPlaybackMasterThread.activeThread = null;
+                    }
+                    return;
+                }
+                
+                // start streaming
+                try ( StreamingPlaybackDevice audioDevice = this.userInterface.getPlaybackDevice(this.bufferLengthMs)
+                    ; InputStream serverIn = socket.getInputStream()
+                    ; OutputStream serverOut = socket.getOutputStream()
+                    ; PipedInputStream levelIn = new PipedInputStream()
+                    ; PipedOutputStream levelOut = new PipedOutputStream(levelIn)
+                )
+                {
+                    // change status text
+                    this.userInterface.setStatusText(this.statusText);
+                    
+                    // monitor levels
+                    Thread monitorThread = new MonitorUpdatingThread(levelIn, this);
+                    monitorThread.start();
+                    
+                    // make audio track ready
+                    byte[] buffer = new byte[audioDevice.requestedBufferSizeInBytes];
+                    audioDevice.initialize();
+                    
+                    // handshake with server
+                    serverOut.write(Protocol.REQUEST_STREAMING());
+                    byte response = (byte)serverIn.read();
+                    if (response != Protocol.STREAMING_SERVER_ACCEPT)
+                    {
+                        String message = "Server rejected connection.";
+                        throw new IOException(message);
+                    }
+                    
+                    // send buffer length (ms)
+                    Protocol.STREAMING_WRITE_BUFFER_LENGTH_MS(serverOut, this.bufferLengthMs);
+                    
+                    long readTimeTotal = 0;
+                    long writeTimeTotal = 0;
+                    long numberOfLoops = 0;
+                    long totalBytesRead = 0;
+                    long startTimeNanos = System.nanoTime();
+                    try
+                    {
+                        while (!StreamingPlaybackMasterThread.stopFlag)
+                        {
+                            while (serverIn.available() > buffer.length)
+                            {
+                                serverIn.skip(buffer.length);  // in case the client drifts behind the server
+                            }
+                            long preRead = System.nanoTime();
+                            int bytesRead = serverIn.read(buffer, 0, buffer.length);
+                            long readTime = System.nanoTime() - preRead;
+                            if (bytesRead < 0) { break; }
+                            long preWrite = System.nanoTime();
+                            audioDevice.write(buffer, 0, bytesRead);
+                            if (bytesRead >= MonitorUpdatingThread.MONITOR_BUFFER_LENGTH)
+                            {
+                                levelOut.write(buffer, 0, MonitorUpdatingThread.MONITOR_BUFFER_LENGTH);
+                            }
+                            long writeTime = System.nanoTime() - preWrite;
+                            readTimeTotal += readTime;
+                            writeTimeTotal += writeTime;
+                            ++numberOfLoops;
+                            totalBytesRead += bytesRead;
+                        }
+                        final String message = "Stream stopped.";
+                        this.userInterface.showShortPopupMessage(message);
+                    }
+                    finally
+                    {
+                        // for 2 bytes per channel-sample, 2 channel-samples per frame, and 48000 frames per second:
+                        // we would expect 192000 bytes per second
+                        long totalTimeNanos = System.nanoTime() - startTimeNanos;
+                        double bytesPerSecond = 1000*1000*1000.*totalBytesRead / totalTimeNanos;
+                        double averageReadTime = readTimeTotal / (1000*1000. * numberOfLoops);
+                        double averageWriteTime = writeTimeTotal / (1000*1000. * numberOfLoops);
+                        this.userInterface.logStreamingStatistics(bytesPerSecond, averageReadTime, averageWriteTime);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.userInterface.handleExceptionDuringStreaming(ex);
+                    
+                    final String errorMessage = "An error occurred while streaming.";
+                    this.userInterface.showShortPopupMessage(errorMessage);
+                }
+                finally
+                {
+                    synchronized (StreamingPlaybackMasterThread.statusLock)
+                    {
+                        StreamingPlaybackMasterThread.status = Protocol.STATUS_READY;
+                        StreamingPlaybackMasterThread.stopFlag = true;
+                        StreamingPlaybackMasterThread.activeThread = null;
+                    }
+                    
+                    // clear monitor levels and status
+                    this.userInterface.clearMonitorLevelsAndStatus();
                 }
             }
         }
