@@ -215,11 +215,13 @@ public class TransmitterSelectionActivity extends Activity implements ScanningUs
     // ScanningUserInterface methods //
     ///////////////////////////////////
     
+    @Override
     public void handleExceptionDuringScanWorkerExecution(Exception ex)
     {
         Log.e(APP_NAME, ex.toString());
     }
     
+    @Override
     public void incrementScanProgressBy(final int amount)
     {
         this.runOnUiThread(new Runnable() { @Override public void run()
@@ -229,11 +231,13 @@ public class TransmitterSelectionActivity extends Activity implements ScanningUs
         }});
     }
     
+    @Override
     public String getLocalAddressPrefix() throws Exception
     {
         return TransmitterSelectionActivity.getLocalAddressPrefix(this);
     }
     
+    @Override
     public void handleExceptionDuringScanStart(Exception ex)
     {
         Log.e(APP_NAME, ex.getMessage());
@@ -245,6 +249,7 @@ public class TransmitterSelectionActivity extends Activity implements ScanningUs
         }});
     }
     
+    @Override
     public void resetScanReadyZonesAndProgress()
     {
         this.runOnUiThread(new Runnable() { @Override public void run()
@@ -256,6 +261,7 @@ public class TransmitterSelectionActivity extends Activity implements ScanningUs
         }});
     }
     
+    @Override
     public void addReadyScanResult(final ScanResult scanResult)
     {
         Log.e(APP_NAME, String.format("Found %s (%s)", scanResult.host, scanResult.name));
@@ -276,11 +282,13 @@ public class TransmitterSelectionActivity extends Activity implements ScanningUs
         }});
     }
     
+    @Override
     public void handleInterruptedExceptionDuringButtonCreation(InterruptedException ex)
     {
         Log.e(APP_NAME, ex.toString());
     }
     
+    @Override
     public void handleExceptionDuringWorkerThreadJoin(Exception ex)
     {
         Log.e(APP_NAME, ex.getMessage());
@@ -292,6 +300,7 @@ public class TransmitterSelectionActivity extends Activity implements ScanningUs
         }});
     }
     
+    @Override
     public void showScanFinishedSuccessfully()
     {
         final String message = "Finished Scan";
