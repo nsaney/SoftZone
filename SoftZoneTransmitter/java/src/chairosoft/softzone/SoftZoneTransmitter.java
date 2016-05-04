@@ -768,85 +768,15 @@ public class SoftZoneTransmitter
         public static interface StreamingPlaybackUserInterface
         {
             public StreamingPlaybackDevice getPlaybackDevice(int bufferLengthMs);
-            
             public void updateMonitors(byte leftSampleHighByte, byte rightSampleHighByte);
-            // {
-            //     final int leftLevelLinear = MonitorUpdatingThread.getLinearLevel(leftSampleHighByte);
-            //     final int rightLevelLinear = MonitorUpdatingThread.getLinearLevel(rightSampleHighByte);
-            //     //final int leftLevelDecibel = MonitorUpdatingThread.getDecibelLevel(leftLevelLinear);
-            //     //final int rightLevelDecibel = MonitorUpdatingThread.getDecibelLevel(rightLevelLinear);
-            //     this.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         ProgressBar progressBarLeftLevel = (ProgressBar)self.findViewById(R.id.progressBarLeftLevel);
-            //         ProgressBar progressBarRightLevel = (ProgressBar)self.findViewById(R.id.progressBarRightLevel);
-            //         progressBarLeftLevel.setProgress(leftLevelLinear);
-            //         progressBarRightLevel.setProgress(rightLevelLinear);
-            //     }});
-            // }
-            
             public void handleExceptionDuringMonitorUpdating(Exception ex);
-            // {
-            //     Log.e(APP_NAME, ex.toString());
-            // }
-            
             public String getStatusText(int bufferLengthMs);
-            // {
-            //     String label_streaming_with_buffer_size = this.getString(R.string.label_streaming_with_buffer_size);
-            //     return String.format("%s %sms", label_streaming_with_buffer_size, bufferLengthMs);
-            // }
-            
             public void setStatusText(String statusText);
-            // {
-            //     this.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         ((TextView)self.findViewById(R.id.textStreamStatus)).setText(statusText);
-            //     }});
-            // }
-            
             public void handleExceptionDuringSocketConnection(Exception ex);
-            // {
-            //     Log.e(APP_NAME, ex.getMessage());
-            //     
-            //     final String message = String.format("Connection timeout (%sms)", CONNECTION_TIMEOUT_MS);
-            //     this.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         Toast toast = Toast.makeText(self, message, Toast.LENGTH_SHORT);
-            //         toast.show();
-            //     }});
-            // }
-            
             public void showShortPopupMessage(String message);
-            // {
-            //     this.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         Toast toast = Toast.makeText(self, message, Toast.LENGTH_SHORT);
-            //         toast.show();
-            //     }});
-            // }
-            
             public void logStreamingStatistics(double bytesPerSecond, double averageReadTime, double averageWriteTime);
-            // {
-            //     Log.e(APP_NAME, "bytes per second = " + bytesPerSecond);
-            //     Log.e(APP_NAME, "average read time  (ms) = " + averageReadTime);
-            //     Log.e(APP_NAME, "average write time (ms) = " + averageWriteTime);
-            // }
-            
             public void handleExceptionDuringStreaming(Exception ex);
-            // {
-            //     Log.e(APP_NAME, ex.getMessage());
-            // }
-            
             public void clearMonitorLevelsAndStatus();
-            // {
-            //     this.runOnUiThread(new Runnable() { @Override public void run()
-            //     {
-            //         ProgressBar progressBarLeftLevel = (ProgressBar)self.findViewById(R.id.progressBarLeftLevel);
-            //         ProgressBar progressBarRightLevel = (ProgressBar)self.findViewById(R.id.progressBarRightLevel);
-            //         progressBarLeftLevel.setProgress(0);
-            //         progressBarRightLevel.setProgress(0);
-            //         ((TextView)self.findViewById(R.id.textStreamStatus)).setText(R.string.label_not_streaming);
-            //     }});
-            // }
         }
         
         /**
