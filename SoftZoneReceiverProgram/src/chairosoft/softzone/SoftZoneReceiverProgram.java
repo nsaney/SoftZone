@@ -407,9 +407,8 @@ public class SoftZoneReceiverProgram
                     
                     // textFieldServerPort
                     DynamicUI.textFieldServerPort = new JTextField(6);
-                    {
-                        DynamicUI.textFieldServerPort.setText("" + Protocol.CONNECTION_SERVER_PORT);
-                    }
+                    DynamicUI.textFieldServerPort.addKeyListener(MANUAL_ENTRY_KEY_LISTENER);
+                    DynamicUI.textFieldServerPort.setText("" + Protocol.CONNECTION_SERVER_PORT);
                     sc.gridy = 1;
                     sc.gridx = 1;
                     sc.weightx = 1.0;
@@ -604,6 +603,7 @@ public class SoftZoneReceiverProgram
     
     private static final ActionListener SELECT_SERVER_LISTENER = e ->
     {
+        Component errorComponent = null;
         String errorMessage = null;
         try
         {
@@ -611,6 +611,7 @@ public class SoftZoneReceiverProgram
             String host = DynamicUI.textFieldServerHost.getText().trim();
             String portText = DynamicUI.textFieldServerPort.getText().trim();
             
+            errorComponent = DynamicUI.textFieldServerHost;
             errorMessage = "Invalid server IP address.";
             if (host == null || host.length() == 0)
             {
@@ -619,9 +620,11 @@ public class SoftZoneReceiverProgram
             InetAddress hostNetAddress = InetAddress.getByName(host);
             String hostAddressText = hostNetAddress.getHostAddress();
             
+            errorComponent = DynamicUI.textFieldServerPort;
             errorMessage = "Invalid server port.";
             int port = Integer.parseInt(portText);
             
+            errorComponent = null;
             errorMessage = null;
             DynamicUI.labelSelectedName.setText(name);
             DynamicUI.labelSelectedHost.setText(hostAddressText);
@@ -630,6 +633,11 @@ public class SoftZoneReceiverProgram
         }
         catch (Exception ex)
         {
+            if (errorComponent != null)
+            {
+                errorComponent.requestFocusInWindow();
+            }
+            
             if (errorMessage == null)
             {
                 throw new RuntimeException(ex);
@@ -664,6 +672,7 @@ public class SoftZoneReceiverProgram
         catch (Exception ex)
         {
             final String errorMessage = "Invalid Port";
+            DynamicUI.textFieldServerPort.requestFocusInWindow();
             STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
         }
     };
@@ -677,6 +686,11 @@ public class SoftZoneReceiverProgram
     {
         @Override public void keyPressed(KeyEvent e)
         {
+            if (e.getKeyCode() == KeyEvent.VK_ENTER)
+            {
+                SELECT_SERVER_LISTENER.actionPerformed(null);
+                return;
+            }
             DynamicUI.textFieldServerName.setText("Manual Entry");
         }
     };
@@ -894,6 +908,7 @@ public class SoftZoneReceiverProgram
                     buttonResult.addActionListener(e -> 
                     {
                         DynamicUI.textFieldServerHost.setText(scanResult.host);
+                        DynamicUI.textFieldServerHost.requestFocusInWindow();
                         DynamicUI.textFieldServerName.setText(scanResult.name);
                     });
                     buttonResult.setAlignmentX(JComponent.CENTER_ALIGNMENT);
