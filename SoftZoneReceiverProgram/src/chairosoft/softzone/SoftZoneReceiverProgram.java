@@ -34,6 +34,9 @@ import java.util.function.Predicate;
 import java.awt.*;
 import javax.swing.*;
 
+import java.awt.geom.*;
+import javax.swing.border.*;
+
 import java.awt.event.*;
 import javax.swing.event.*;
 
@@ -76,8 +79,8 @@ public class SoftZoneReceiverProgram
     
     public static final Color PROGRESS_BAR_COLOR = Color.decode("#2682bd");
     
-    public static final StreamingPlaybackUserInterface STREAMING_PLAYBACK_USER_INTERFACE = new DesktopStreamingPlaybackUserInterface();
-    public static final ScanningUserInterface SCANNING_USER_INTERFACE = new DesktopScanningUserInterface();
+    public static final DesktopStreamingPlaybackUserInterface STREAMING_PLAYBACK_USER_INTERFACE = new DesktopStreamingPlaybackUserInterface();
+    public static final DesktopScanningUserInterface SCANNING_USER_INTERFACE = new DesktopScanningUserInterface();
     
     
     //////////////////////
@@ -107,7 +110,7 @@ public class SoftZoneReceiverProgram
         public static JLabel         labelStreamStatus;
         
         // Select Transmitter
-        public static JDialog    dialogSelectTransmitter;
+        public static JFrame     frameSelectTransmitter;
         public static JTextField textFieldServerName;
         public static JTextField textFieldServerHost;
         public static JTextField textFieldServerPort;
@@ -306,7 +309,7 @@ public class SoftZoneReceiverProgram
         
         
         // Create transmitter selection GUI
-        DynamicUI.dialogSelectTransmitter = new JDialog(DynamicUI.mainFrame, true);
+        DynamicUI.frameSelectTransmitter = new JFrame();
         {
             JPanel panelTransmitterSelection = new JPanel(new GridBagLayout());
             {
@@ -492,16 +495,16 @@ public class SoftZoneReceiverProgram
                 c.gridwidth = defaultGridWidth;
                 
             }
-            DynamicUI.dialogSelectTransmitter.getContentPane().add(panelTransmitterSelection);
+            DynamicUI.frameSelectTransmitter.getContentPane().add(panelTransmitterSelection);
         }
         
         // Set up transmitter selection GUI
-        DynamicUI.dialogSelectTransmitter.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
-        DynamicUI.dialogSelectTransmitter.addComponentListener(TRANSMITTER_SELECTION_COMPONENT_LISTENER);
-        DynamicUI.dialogSelectTransmitter.setTitle(LABEL_SELECT_TRANSMITTER);
-        DynamicUI.dialogSelectTransmitter.setResizable(false);
-        DynamicUI.dialogSelectTransmitter.pack();
-        DynamicUI.dialogSelectTransmitter.setLocationRelativeTo(null);
+        DynamicUI.frameSelectTransmitter.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        DynamicUI.frameSelectTransmitter.addComponentListener(TRANSMITTER_SELECTION_COMPONENT_LISTENER);
+        DynamicUI.frameSelectTransmitter.setTitle(LABEL_SELECT_TRANSMITTER);
+        DynamicUI.frameSelectTransmitter.setResizable(false);
+        DynamicUI.frameSelectTransmitter.pack();
+        DynamicUI.frameSelectTransmitter.setLocationRelativeTo(null);
         
         
         // Set Icon
@@ -509,7 +512,7 @@ public class SoftZoneReceiverProgram
             InputStream iconStream = SoftZoneReceiverProgram.class.getResourceAsStream(ICON_LOCATION);
             BufferedImage iconImage = ImageIO.read(iconStream);
             DynamicUI.mainFrame.setIconImage(iconImage);
-            DynamicUI.dialogSelectTransmitter.setIconImage(iconImage);
+            DynamicUI.frameSelectTransmitter.setIconImage(iconImage);
         }
         catch (Exception ex) {
             ex.printStackTrace();
@@ -517,6 +520,7 @@ public class SoftZoneReceiverProgram
         
         // Show main GUI
         DynamicUI.mainFrame.setVisible(true);
+        DynamicUI.frameSelectTransmitter.setVisible(false);
     }
     
     
@@ -524,14 +528,34 @@ public class SoftZoneReceiverProgram
     // Listeners //
     ///////////////
     
+    // Wrapper ActionListener
+    public static class ActionThread implements ActionListener
+    {
+        // Instance Fields
+        public final ActionListener innerListener;
+        
+        // Constructor
+        public ActionThread(ActionListener _innerListener)
+        {
+            this.innerListener = _innerListener;
+        }
+        
+        // Instance Methods
+        @Override public void actionPerformed(final ActionEvent e)
+        {
+            Thread action = new Thread(() -> this.innerListener.actionPerformed(e));
+            action.start();
+        }
+    }
+    
     // Main GUI
-    private static final ActionListener SELECT_TRANSMITTER_LISTENER = e ->
+    private static final ActionListener SELECT_TRANSMITTER_LISTENER = new ActionThread(e ->
     {
         // show Select Transmitter dialog
-        DynamicUI.dialogSelectTransmitter.setVisible(true);
-    };
+        DynamicUI.frameSelectTransmitter.setVisible(true);
+    });
     
-    private static final ActionListener START_STREAMING_LISTENER = e ->
+    private static final ActionListener START_STREAMING_LISTENER = new ActionThread(e ->
     {
         String errorMessage = null;
         try
@@ -561,24 +585,26 @@ public class SoftZoneReceiverProgram
         catch (Exception ex)
         {
             ex.printStackTrace();
-            if (errorMessage == null)
+            if (errorMessage != null)
             {
-                throw new RuntimeException(ex);
+                STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
             }
-            STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
         }
-    };
+    });
     
-    private static final ActionListener STOP_STREAMING_LISTENER = e ->
+    private static final ActionListener STOP_STREAMING_LISTENER = new ActionThread(e ->
     {
         StreamingPlaybackMasterThread.stopPlayback();
-    };
+    });
     
     // Transmitter Selection GUI
     private static final ComponentListener TRANSMITTER_SELECTION_COMPONENT_LISTENER = new ComponentAdapter()
     {
         @Override public void componentShown(ComponentEvent e)
         {
+            // hide main
+            DynamicUI.mainFrame.setVisible(false);
+            
             // reset server host field
             DynamicUI.textFieldServerName.setText("");
             DynamicUI.textFieldServerHost.requestFocusInWindow();
@@ -597,11 +623,15 @@ public class SoftZoneReceiverProgram
         
         @Override public void componentHidden(ComponentEvent e)
         {
+            // stop scanning
             ScanningMasterThread.stopScanning();
+            
+            // show main
+            DynamicUI.mainFrame.setVisible(true);
         }
     };
     
-    private static final ActionListener SELECT_SERVER_LISTENER = e ->
+    private static final ActionListener SELECT_SERVER_LISTENER = new ActionThread(e ->
     {
         Component errorComponent = null;
         String errorMessage = null;
@@ -629,7 +659,7 @@ public class SoftZoneReceiverProgram
             DynamicUI.labelSelectedName.setText(name);
             DynamicUI.labelSelectedHost.setText(hostAddressText);
             DynamicUI.labelSelectedPort.setText(portText);
-            DynamicUI.dialogSelectTransmitter.setVisible(false);
+            DynamicUI.frameSelectTransmitter.setVisible(false);
         }
         catch (Exception ex)
         {
@@ -645,17 +675,17 @@ public class SoftZoneReceiverProgram
             else
             {
                 System.err.println(errorMessage);
-                STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
+                SCANNING_USER_INTERFACE.showShortPopupMessage(errorMessage);
             }
         }
-    };
+    });
     
-    private static final ActionListener CANCEL_SELECTION_LISTENER = e ->
+    private static final ActionListener CANCEL_SELECTION_LISTENER = new ActionThread(e ->
     {
-        DynamicUI.dialogSelectTransmitter.setVisible(false);
-    };
+        DynamicUI.frameSelectTransmitter.setVisible(false);
+    });
     
-    private static final ActionListener START_SCANNING_LISTENER = e ->
+    private static final ActionListener START_SCANNING_LISTENER = new ActionThread(e ->
     {
         try
         {
@@ -673,14 +703,14 @@ public class SoftZoneReceiverProgram
         {
             final String errorMessage = "Invalid Port";
             DynamicUI.textFieldServerPort.requestFocusInWindow();
-            STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
+            SCANNING_USER_INTERFACE.showShortPopupMessage(errorMessage);
         }
-    };
+    });
     
-    private static final ActionListener STOP_SCANNING_LISTENER = e -> 
+    private static final ActionListener STOP_SCANNING_LISTENER = new ActionThread(e -> 
     {
         ScanningMasterThread.stopScanning();
-    };
+    });
     
     private static final KeyListener MANUAL_ENTRY_KEY_LISTENER = new KeyAdapter()
     {
@@ -827,10 +857,10 @@ public class SoftZoneReceiverProgram
         @Override
         public void showShortPopupMessage(final String message)
         {
-            // TODO: a better solution (less intrusive than a modal popup)
             SwingUtilities.invokeLater(() ->
             {
-                JOptionPane.showMessageDialog(DynamicUI.mainFrame, message);
+                JToast toast = new JToast(DynamicUI.mainFrame, 2000, message);
+                toast.showToast();
             });
         }
         
@@ -883,7 +913,7 @@ public class SoftZoneReceiverProgram
         {
             ex.printStackTrace();
             final String errorMessage = "Error starting scan";
-            STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
+            SCANNING_USER_INTERFACE.showShortPopupMessage(errorMessage);
         }
         
         @Override
@@ -929,23 +959,36 @@ public class SoftZoneReceiverProgram
         {
             ex.printStackTrace();
             final String errorMessage = "Error while scanning";
-            STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(errorMessage);
+            SCANNING_USER_INTERFACE.showShortPopupMessage(errorMessage);
         }
         
         @Override
         public void showScanFinishedSuccessfully()
         {
             final String message = "Finished Scan";
-            STREAMING_PLAYBACK_USER_INTERFACE.showShortPopupMessage(message);
+            SCANNING_USER_INTERFACE.showShortPopupMessage(message);
             DynamicUI.progressPanelScanMonitor.setProgressToMaximum();
+        }
+        
+        // Added for convenience
+        public void showShortPopupMessage(final String message)
+        {
+            SwingUtilities.invokeLater(() ->
+            {
+                JToast toast = new JToast(DynamicUI.frameSelectTransmitter, 2000, message);
+                toast.showToast();
+            });
         }
     }
     
     
-    ////////////////////
-    // JProgressPanel //
-    ////////////////////
+    ///////////////////////////////////////////
+    // Inner Static Classes - User Interface //
+    ///////////////////////////////////////////
     
+    /**
+     * A progress bar made from a JPanel.
+     */
     public static class JProgressPanel extends JPanel
     {
         // Constants
@@ -1026,6 +1069,120 @@ public class SoftZoneReceiverProgram
                 g2d.dispose();
             }
             //DynamicUI.labelStreamStatus.setText(String.format("g2d.drawRect(%s, %s, %s, %s)", x, y, progressWidth, totalHeight));
+        }
+    }
+    
+    /**
+     * A toast popup made from a JDialog.
+     * See http://stackoverflow.com/questions/10161149/android-like-toast-in-swing
+     * See http://www.javaknowledge.info/android-like-toast-using-java-swing/
+     */
+    public static class JToast extends JDialog
+    {
+        // Instance Fields
+        public final Component relativeComponent;
+        public final int timeoutMs;
+        public final String message;
+        public final JPanel panel;
+        public final JLabel label;
+        protected boolean hasBeenShown;
+        protected final Thread removalThread;
+        
+        // Constructors
+        public JToast(Frame _frame, int _timeoutMs, String _message)
+        {
+            super(_frame, false);
+            this.relativeComponent = _frame;
+            this.timeoutMs = _timeoutMs;
+            this.message = _message;
+            this.panel = new JPanel();
+            this.label = new JLabel();
+            this.hasBeenShown = false;
+            
+            // removalThread
+            this.removalThread = new Thread(() ->
+            {
+                try
+                {
+                    Thread.sleep(this.timeoutMs);
+                }
+                catch (InterruptedException ex)
+                {
+                    //ex.printStackTrace();
+                }
+                finally
+                {
+                    this.setVisible(false);
+                    this.dispose();
+                }
+            });
+            
+            // content
+            {
+                this.setLayout(new BorderLayout(0, 0));
+                // panel
+                {
+                    this.panel.setBackground(Color.BLACK);
+                    //this.panel.setBorder(new LineBorder(Color.LIGHT_GRAY, 2));
+                    // label 
+                    {
+                        this.label.setText(this.message);
+                        this.label.setFont(new Font("Dialog", Font.BOLD, 24));
+                        this.label.setBackground(Color.BLACK);
+                        this.label.setForeground(Color.WHITE);
+                        this.label.addMouseListener(new MouseAdapter()
+                        {
+                            @Override public void mouseClicked(MouseEvent e)
+                            {
+                                JToast.this.removalThread.interrupt();
+                            }
+                        });
+                    }
+                    this.panel.add(this.label);
+                }
+                this.add(this.panel, BorderLayout.CENTER);
+            }
+            
+            // decoration
+            this.setUndecorated(true);
+            if (this.isUndecorated())
+            {
+                // opacity
+                GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+                GraphicsDevice gd = ge.getDefaultScreenDevice();
+                boolean isTranslucencySupported = gd.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.TRANSLUCENT);
+                if (isTranslucencySupported)
+                {
+                    this.setOpacity(0.67f);
+                }
+                
+                // shape
+                this.addComponentListener(new ComponentAdapter() 
+                {
+                    @Override public void componentResized(ComponentEvent e) 
+                    {
+                        JToast.this.setShape(new RoundRectangle2D.Double(0, 0, JToast.this.getWidth(), JToast.this.getHeight(), 30, 30));
+                    }
+                });
+            }
+            
+            // general settings
+            this.setAlwaysOnTop(true);
+            this.pack();
+            //this.setVisible(false);
+            
+            // location
+            this.setLocationRelativeTo(this.relativeComponent);
+        }
+        
+        // Instance Methods
+        public void showToast()
+        {
+            if (this.hasBeenShown) { return; }
+            this.hasBeenShown = true;
+            
+            this.removalThread.start();
+            this.setVisible(true);
         }
     }
 }
