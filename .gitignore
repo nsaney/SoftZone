@@ -7,7 +7,7 @@ SoftZoneReceiverApp/local.properties
 SoftZoneReceiverProgram/bin
 SoftZoneReceiverProgram/Deploy_*
 SoftZoneReceiverProgram/doc
-SoftZoneReceiverProgram/lib
+SoftZoneReceiverProgram/lib/*.jar
 SoftZoneTransmitter/java/bin
 SoftZoneTransmitter/java/Deploy_*
 SoftZoneTransmitter/java/doc
