@@ -1086,6 +1086,7 @@ public class SoftZoneReceiverProgram
         public final JPanel panel;
         public final JLabel label;
         protected boolean hasBeenShown;
+        protected boolean hasTimedOut;
         protected final Thread removalThread;
         
         // Constructors
@@ -1098,6 +1099,7 @@ public class SoftZoneReceiverProgram
             this.panel = new JPanel();
             this.label = new JLabel();
             this.hasBeenShown = false;
+            this.hasTimedOut = false;
             
             // removalThread
             this.removalThread = new Thread(() ->
@@ -1112,8 +1114,19 @@ public class SoftZoneReceiverProgram
                 }
                 finally
                 {
-                    this.setVisible(false);
-                    this.dispose();
+                    this.hideToast();
+                }
+            });
+            
+            // component
+            this.addComponentListener(new ComponentAdapter()
+            {
+                @Override public void componentShown(ComponentEvent e)
+                {
+                    if (JToast.this.hasTimedOut && JToast.this.isVisible())
+                    {
+                        JToast.this.hideToast();
+                    }
                 }
             });
             
@@ -1135,6 +1148,7 @@ public class SoftZoneReceiverProgram
                             @Override public void mouseClicked(MouseEvent e)
                             {
                                 JToast.this.removalThread.interrupt();
+                                JToast.this.hideToast();
                             }
                         });
                     }
@@ -1183,6 +1197,13 @@ public class SoftZoneReceiverProgram
             
             this.removalThread.start();
             this.setVisible(true);
+        }
+        
+        public void hideToast()
+        {
+            this.hasTimedOut = true;
+            this.setVisible(false);
+            this.dispose();
         }
     }
 }
