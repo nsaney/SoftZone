@@ -27,7 +27,7 @@
   <!-- Library properties -->
   <property name="library"       value="lib"/>
   <property name="jar_includes"  value="${library}/*.jar"/>
-  <property name="lib_includes"  value="[empty]"/>
+  <property name="lib_includes"  value="${library}/"/>
   <property name="jars"          value="[empty]"/>
   <property name="jars_"         value="[empty]"/>
   <script language="javascript">
@@ -38,7 +38,6 @@
     fs.setIncludes($jar_includes);
     var jarFiles = fs.getDirectoryScanner(project).getIncludedFiles();
     
-    project.setProperty("lib_includes", $jar_includes.replaceAll("\\*.jar", "")); 
     project.setProperty("jars", java.lang.String.join(":", jarFiles)); 
     project.setProperty("jars_", java.lang.String.join(" ", jarFiles));
   ]]>
@@ -66,7 +65,7 @@
   </target>
   
   <target name="clean" depends="clean-build,clean-deploy,clean-documents"/>
-
+  
   
   <!-- document target -->
   <target name="document" depends="clean-documents">
@@ -145,28 +144,20 @@
         dir="." 
         includes="${res_includes}"
       />
+      <zipgroupfileset dir="." includes="${jar_includes}" />
       <manifest>
         <attribute name="Main-Class" value="${main_fq_name}"/>
-        <attribute name="Class-Path" value="${jars_}"/>
       </manifest>
     </jar>
-    
-    <copy todir="${deploy}">
-      <fileset
-        dir="."
-        includes="${lib_includes}"
-      />
-    </copy>
     
   </target>
   
   <target name="deploy" depends="build,redeploy"/>
-
+  
   
   <!-- all target -->
   <target name="all" depends="document,deploy"/>
   
-
   
   <!-- jar run target -->
   <target name="runjar">
