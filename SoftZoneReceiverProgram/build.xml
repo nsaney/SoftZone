@@ -18,7 +18,7 @@
   <property name="build"         value="bin"/>
   <property name="documents"     value="doc"/>
   <property name="deploy"        value="Deploy_${ant.project.name}"/>
-  <property name="exec_jar_name" value="Run_${ant.project.name}.jar"/>
+  <property name="exec_jar_name" value="${ant.project.name}.jar"/>
   
   <!-- Resource properties -->
   <property name="image"         value="img"/>
@@ -26,8 +26,8 @@
   
   <!-- Library properties -->
   <property name="library"       value="lib"/>
-  <property name="jar_includes"  value="${library}/*.jar"/>
   <property name="lib_includes"  value="${library}/"/>
+  <property name="jar_includes"  value="${library}/*.jar"/>
   <property name="jars"          value="[empty]"/>
   <property name="jars_"         value="[empty]"/>
   <script language="javascript">
